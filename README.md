@@ -162,16 +162,100 @@ message attributes as stated on its [documentation](https://cloud.google.com/pub
 The source connector takes a similar approach in handling the conversion
 from a Pubsub message into a SourceRecord with a relevant Schema.
 
-*   The connector searches for the given kafka.key.attribute in the
+* The connector searches for the given kafka.key.attribute in the
     attributes of the Pubsub message. If found, this will be used as the Kafka
     key with a string schema type. Otherwise, it will be set to null.
-*   If the Pubsub message doesn't have any other attributes, the message body
+* If the Pubsub message doesn't have any other attributes, the message body
     is stored as a byte[] for the Kafka message's value.
-*   However, if there are attributes beyond the Kafka key, the value is assigned
+* However, if there are attributes beyond the Kafka key, the value is assigned
     a struct schema. Each key in the Pubsub message's attributes map becomes a
     field name, with the values set accordingly with string schemas. In this
     case, the Pubsub message body is identified by the field name set in
     "message", and has the schema types bytes.
-    *   In these cases, to carry forward the structure of data stored in
+    * In these cases, to carry forward the structure of data stored in
         attributes, we recommend using a converter that can represent a struct
         schema type in a useful way, e.g. JsonConverter.
+
+
+## How to test
+
+### Install Kafka (Zookeeper, Broker and Connect)
+Start an instance of Kafka broker (with Zookeeper) and Connect worker.
+You can install either Kafka Open Source or the Confluent Platform.
+Please follow the instruction for the version of your choice. Regarding Kafka Connect, you can start
+either in *standalone* mode or *distributed* mode. Keep in mind that in production environment is recommended
+to use the distributed mode, so we assume that you're going to use this mode. The distributed mode is also the
+default mode in which Kafka Connect starts if you use Confluent Platform.
+
+Whichever version of Kafka Connect you choose, enable Rest API in the configuration file with ```listeners=HTTP://localhost:8083```.
+
+#### Kafka OS
+
+To run Kafka locally (or on bare metal), download and unzip the distribution from Kafka website. Then, execute the
+following commands from the directory in which you unzipped the package.
+
+     bin/zookeeper-server-start.sh config/zookeeper.properties
+     bin/kafka-server-start.sh config/server.properties
+     bin/connect-distributed.sh config/connect-distributed.properties
+
+Keep in mind updating ```connect-distributed.properties``` adding ```listeners``` and ```plugin.path``` properties (see below).
+
+### Connector
+
+Prepare the jar with the command
+
+     mvn clean package
+
+You will find the target jar in the target directory. Copy the jar in the proper directory
+
+- if you installed Confluent Platform copy the file in ```CONFLUENT_HOME/share/java```.
+- if you installed Kafka OS, place the jar in a directory of your choice. You have to specify the directory in the configuration file ```config/connect-distributed.properties```, in the ```plugin.path``` property.
+
+### Configure the connector
+
+#### Sink Connector
+
+Execute the following command in a shell
+
+     curl -X POST http://localhost:8083/connectors -H 'Content-Type:application/json' -H 'Accept:application/json' \
+        -d '{
+            "name": "PubSubSinkConnectorJSON",
+            "config": {
+                "connector.class": "com.ftw.pubsub.kafka.sink.CloudPubSubSinkConnector",
+                "tasks.max": "4",
+                "topics": "topic-vf-json",
+                "errors.tolerance":"all",
+                "errors.deadletterqueue.topic.name":"topic-vf-json-dlq",
+                "cps.topic":"test-vf-json",
+                "cps.project":"big-query-test-332316",
+                "gcp.credentials.file.path":"/path/to/service-account.json",
+                "key.converter":"org.apache.kafka.connect.storage.StringConverter",
+                "value.converter":"org.apache.kafka.connect.json.JsonConverter",
+                "value.converter.schemas.enable":"false"
+            }
+        }'
+
+#### Source Connector
+
+Execute the following command in a shell. You can use a Pubsub message attribute as key
+setting the property ```kafka.key.attribute```.
+
+     curl -X POST http://localhost:8083/connectors -H 'Content-Type:application/json' -H 'Accept:application/json' \
+        -d '{
+            "name": "PubSubSourceConnectorJSON",
+            "config": {
+                "connector.class": "com.ftw.pubsub.kafka.source.CloudPubSubSourceConnector",
+                "tasks.max": "1",
+                "kafka.topic":"json-from-pubsub",
+                "kafka.key.attribute":"key",
+                "errors.tolerance":"all",
+                "errors.deadletterqueue.topic.name":"json-from-pubsub-dlq",
+                "cps.subscription":"cps-vf-json-sub",
+                "cps.project":"big-query-test-332316",
+                "cps.as.plain.string":"true",
+                "gcp.credentials.file.path":"/path/to/service-account.json",
+                "key.converter":"org.apache.kafka.connect.storage.StringConverter",
+                "value.converter":"org.apache.kafka.connect.json.JsonConverter",
+                "value.converter.schemas.enable":"false"
+            }
+        }'
