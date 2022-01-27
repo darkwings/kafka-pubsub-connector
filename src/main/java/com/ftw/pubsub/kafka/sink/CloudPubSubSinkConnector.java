@@ -13,9 +13,9 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.sink;
+package com.ftw.pubsub.kafka.sink;
 
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

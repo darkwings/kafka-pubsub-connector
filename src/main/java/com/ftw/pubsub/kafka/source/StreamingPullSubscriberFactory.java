@@ -1,4 +1,4 @@
-package com.nttdata.pubsub.kafka.source;
+package com.ftw.pubsub.kafka.source;
 
 import com.google.cloud.pubsub.v1.MessageReceiver;
 import com.google.cloud.pubsub.v1.SubscriberInterface;

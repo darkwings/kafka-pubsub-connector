@@ -61,7 +61,7 @@ Execute the following command in a shell
         -d '{
             "name": "PubSubSinkConnectorJSON",
             "config": {
-                "connector.class": "com.nttdata.pubsub.kafka.sink.CloudPubSubSinkConnector",
+                "connector.class": "com.ftw.pubsub.kafka.sink.CloudPubSubSinkConnector",
                 "tasks.max": "4",
                 "topics": "topic-vf-json",
                 "errors.tolerance":"all",
@@ -84,7 +84,7 @@ setting the property ```kafka.key.attribute```.
         -d '{
             "name": "PubSubSourceConnectorJSON",
             "config": {
-                "connector.class": "com.nttdata.pubsub.kafka.source.CloudPubSubSourceConnector",
+                "connector.class": "com.ftw.pubsub.kafka.source.CloudPubSubSourceConnector",
                 "tasks.max": "1",
                 "kafka.topic":"json-from-pubsub",
                 "kafka.key.attribute":"key",

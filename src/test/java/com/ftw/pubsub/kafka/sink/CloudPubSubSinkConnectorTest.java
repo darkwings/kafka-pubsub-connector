@@ -13,11 +13,12 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.sink;
+package com.ftw.pubsub.kafka.sink;
 
 import static org.junit.Assert.assertEquals;
 
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package com.nttdata.pubsub.kafka.sink;
+package com.ftw.pubsub.kafka.sink;
 
 import com.google.api.core.ApiFuture;
 import com.google.api.core.ApiFutures;
@@ -12,8 +12,8 @@ import com.google.api.gax.rpc.InvalidArgumentException;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ByteString;
-import com.nttdata.pubsub.kafka.common.ConnectorCredentialsProvider;
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
+import com.ftw.pubsub.kafka.common.ConnectorCredentialsProvider;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
 import com.google.pubsub.v1.ProjectTopicName;
 import com.google.pubsub.v1.PubsubMessage;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -50,7 +50,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.nttdata.pubsub.kafka.common.ConnectorUtils.getSystemExecutor;
+import static com.ftw.pubsub.kafka.common.ConnectorUtils.getSystemExecutor;
 
 /**
  * A {@link SinkTask} used by a {@link CloudPubSubSinkConnector} to write messages to <a

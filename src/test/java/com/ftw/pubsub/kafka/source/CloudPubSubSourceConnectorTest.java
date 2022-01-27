@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.source;
+package com.ftw.pubsub.kafka.source;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
@@ -22,8 +22,9 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
-import com.nttdata.pubsub.kafka.common.ConnectorCredentialsProvider;
+import com.ftw.pubsub.kafka.common.ConnectorCredentialsProvider;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

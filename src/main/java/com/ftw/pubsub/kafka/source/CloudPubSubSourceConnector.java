@@ -13,14 +13,14 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.source;
+package com.ftw.pubsub.kafka.source;
 
+import com.ftw.pubsub.kafka.common.ConnectorCredentialsProvider;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
 import com.google.api.gax.core.CredentialsProvider;
 import com.google.cloud.pubsub.v1.stub.GrpcSubscriberStub;
 import com.google.cloud.pubsub.v1.stub.SubscriberStubSettings;
 import com.google.common.annotations.VisibleForTesting;
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
-import com.nttdata.pubsub.kafka.common.ConnectorCredentialsProvider;
 import com.google.pubsub.v1.GetSubscriptionRequest;
 import java.io.IOException;
 import java.util.ArrayList;

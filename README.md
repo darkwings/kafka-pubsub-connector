@@ -36,39 +36,32 @@ Pub/Sub Lite to Kafka.
     export this environment variable as part of your shell startup file).
 
     `export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key/file`
-    
-### Quickstart: copy_tool.py
 
-You can download `copy_tool.py`, a single-file python script which downloads,
-sets up and runs the kafka connector in a single-machine configuration. This
-script requires:
 
-1. python >= 3.5
-1. [requests](https://requests.readthedocs.io/en/master/user/install/#python-m-pip-install-requests)
-   installed
-1. `JAVA_HOME` configured properly
-1. `GOOGLE_APPLICATION_CREDENTIALS` set
-1. A [properties file](#cloudpubsubconnector-configs) with connector.class and
-   other properties set
-   
-It can be invoked on mac/linux with:
+### Building
 
-```bash
-python3 path/to/copy_tool.py --bootstrap_servers=MY_KAFKA_SERVER,OTHER_SERVER --connector_properties_file=path/to/connector.properties
-```
+These instructions assume you are using [Maven](https://maven.apache.org/).
 
-or windows with:
+1.  If you want to build the connector from head, clone the repository, ensuring
+    to do so recursively to pick up submodules:
 
-```bash
-python3 path\to\copy_tool.py --bootstrap_servers=MY_KAFKA_SERVER,OTHER_SERVER --connector_properties_file=path\to\connector.properties
-```
+    `git clone --recursive https://github.com/GoogleCloudPlatform/pubsub`
 
-### Acquiring the connector
+    If you wish to build from a released version of the connector, download it
+    from the [Releases section](https://github.com/GoogleCloudPlatform/pubsub/releases)
+    in GitHub.
 
-A pre-built uber-jar is available for download with the
-[latest release](https://github.com/GoogleCloudPlatform/pubsub/releases).
+2.  Unzip the source code if downloaded from the release version.
 
-You can also build the connector from head, as described [below](#building).
+3.  Go into the kafka-connector directory in the cloned repo or downloaded
+    release.
+
+4.  Make the jar that contains the connector:
+
+    `mvn package`
+
+The resulting jar is at target/pubsub-kafka-connector.jar.
+
 
 ### Running a Connector
 
@@ -107,6 +100,7 @@ Connector supports the following configs:
 | cps.endpoint | String | "pubsub.googleapis.com:443" | The [Cloud Pub/Sub endpoint](https://cloud.google.com/pubsub/docs/reference/service_apis_overview#service_endpoints) to use. |
 | kafka.topic | String | REQUIRED (No default) | The topic in Kafka which will receive messages that were pulled from Cloud Pub/Sub. |
 | cps.maxBatchSize | Integer | 100 | The maximum number of messages to batch per pull request to Cloud Pub/Sub. |
+| cps.as.plain.text | Boolean | false | Set to true if you want the source connector to forward data as plain text |
 | cps.makeOrderingKeyAttribute | Boolean | false | When true, copy the ordering key to the set of attributes set in the Kafka message. |
 | kafka.key.attribute | String | null | The Cloud Pub/Sub message attribute to use as a key for messages published to Kafka. If set to "orderingKey", use the message's ordering key. |
 | kafka.partition.count | Integer | 1 | The number of Kafka partitions for the Kafka topic in which messages will be published to. NOTE: this parameter is ignored if partition scheme is "kafka_partitioner".|
@@ -134,30 +128,7 @@ Connector supports the following configs:
 | metadata.publish | Boolean | false | When true, include the Kafka topic, partition, offset, and timestamp as message attributes when a message is published to Cloud Pub/Sub. |
 | headers.publish | Boolean | false | When true, include any headers as attributes when a message is published to Cloud Pub/Sub. |
 | orderingKeySource | String (none, key, partition) | none | When set to "none", do not set the ordering key. When set to "key", uses a message's key as the ordering key. If set to "partition", converts the partition number to a String and uses that as the ordering key. Note that using "partition" should only be used for low-throughput topics or topics with thousands of partitions. |
-
-### PubSubLiteConnector Configs
-
-In addition to the configs supplied by the Kafka Connect API, the Pub/Sub Lite
-Connector supports the following configs:
-
-#### Source Connector
-
-| Config | Value Range | Default | Description |
-|---------------|-------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| pubsublite.subscription | String | REQUIRED (No default) | The name of the subscription to Pub/Sub Lite, e.g. "sub" for subscription "/projects/bar/locations/europe-south7-q/subscriptions/sub". |
-| pubsublite.project | String | REQUIRED (No default) | The project in Pub/Sub Lite containing the subscription, e.g. "bar" from above. |
-| pubsublite.location | String | REQUIRED (No default) | The location in Pub/Sub Lite containing the subscription, e.g. "europe-south7-q" from above. |
-| kafka.topic | String | REQUIRED (No default) | The topic in Kafka which will receive messages that were pulled from Pub/Sub Lite. |
-| pubsublite.partition_flow_control.messages | Long | Long.MAX_VALUE | The maximum number of outstanding messages per Pub/Sub Lite partition. |
-| pubsublite.partition_flow_control.bytes | Long | 20,000,000 | The maximum number of outstanding bytes per Pub/Sub Lite partition. |
-
-#### Sink Connector
-
-| Config | Value Range | Default | Description |
-|---------------|-------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| pubsublite.topic | String | REQUIRED (No default) | The topic in Pub/Sub Lite to publish to, e.g. "foo" for topic "/projects/bar/locations/europe-south7-q/topics/foo". |
-| pubsublite.project | String | REQUIRED (No default) | The project in Pub/Sub Lite containing the topic, e.g. "bar" from above. |
-| pubsublite.location | String | REQUIRED (No default) | The location in Pub/Sub Lite containing the topic, e.g. "europe-south7-q" from above. |
+| sink.dlq.topic | String | Optional | If set, a flush() error will send discarded messages to the given DLQ topic |
 
 ### Schema Support and Data Model
 
@@ -219,94 +190,3 @@ from a Pubsub message into a SourceRecord with a relevant Schema.
     *   In these cases, to carry forward the structure of data stored in
         attributes, we recommend using a converter that can represent a struct
         schema type in a useful way, e.g. JsonConverter.
-        
-        
-#### Pub/Sub Lite Connector
-
-Pub/Sub Lite's messages have the following structure:
-
-```java
-class Message {
-  ByteString key;
-  ByteString data;
-  ListMultimap<String, ByteString> attributes;
-  Optional<Timestamp> eventTime;
-}
-```
- 
-This maps quite closely to the SinkRecord class, except for serialization. The
-table below shows how each field in SinkRecord will be mapped to the underlying
-message:
-
-| SinkRecord | Message |
-|---|---|
-| key{Schema} | key |
-| value{Schema} | data |
-| headers | attributes |
-| topic | attributes["x-goog-pubsublite-source-kafka-topic"] |
-| kafkaPartition | attributes["x-goog-pubsublite-source-kafka-partition"] |
-| kafkaOffset | attributes["x-goog-pubsublite-source-kafka-offset"] |
-| timestamp | eventTime |
-| timestampType | attributes["x-goog-pubsublite-source-kafka-event-time-type"] |
-
-When a key, value or header value with a schema is encoded as a ByteString, the
-following logic will be used:
-
-- null schemas are treated as Schema.STRING_SCHEMA
-- Top level BYTES payloads are unmodified.
-- Top level STRING payloads are encoded using copyFromUtf8.
-- Top level Integral payloads are converted using
-copyFromUtf8(Long.toString(x.longValue()))
-- Top level Floating point payloads are converted using
-copyFromUtf8(Double.toString(x.doubleValue()))
-- All other payloads are encoded into a protobuf Value, then converted to a ByteString.
-  - Nested STRING fields are encoded into a protobuf Value.
-  - Nested BYTES fields are encoded to a protobuf Value holding the base64 encoded bytes.
-  - Nested Numeric fields are encoded as a double into a protobuf Value.
-  - Maps with Array, Map, or Struct keys are not supported.
-    - BYTES keys in maps are base64 encoded.
-    - Integral keys are converted using Long.toString(x.longValue())
-    - Floating point keys are converted using Double.toString(x.doubleValue())
-    
-The source connector will perform a one to one mapping from SequencedMessage
-fields to their SourceRecord counterparts.
-
-In addition, empty `message.key` fields will be converted to `null` and assigned
-round-robin to kafka partitions. Messages with identical, non-empty keys will be
-routed to the same kafka partition.
-
-| SequencedMessage | SourceRecord field | SourceRecord schema |
-|---|---|---|
-| message.key | key | BYTES |
-| message.data | value | BYTES |
-| message.attributes | headers | BYTES |
-| <source topic> | sourcePartition["topic"] | String field in map |
-| <source partition> | sourcePartition["partition"] | Integer field in map |
-| cursor.offset | sourceOffset["offset"] | Long field in map |
-| message.event_time | timestamp | long milliseconds since unix epoch if present |
-| publish_time | timestamp | long milliseconds since unix epoch if no event_time exists |
-
-
-### Building
-
-These instructions assume you are using [Maven](https://maven.apache.org/).
-
-1.  If you want to build the connector from head, clone the repository, ensuring
-    to do so recursively to pick up submodules:
-
-    `git clone --recursive https://github.com/GoogleCloudPlatform/pubsub`
-
-    If you wish to build from a released version of the connector, download it
-    from the [Releases section](https://github.com/GoogleCloudPlatform/pubsub/releases)
-    in GitHub.
-
-2.  Unzip the source code if downloaded from the release version.
-
-3.  Go into the kafka-connector directory in the cloned repo or downloaded
-    release.
-
-4.  Make the jar that contains the connector:
-
-    `mvn package`
-
-The resulting jar is at target/pubsub-kafka-connector.jar.

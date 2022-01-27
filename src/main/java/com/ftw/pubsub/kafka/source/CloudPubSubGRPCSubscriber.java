@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.source;
+package com.ftw.pubsub.kafka.source;
 
 import com.google.api.core.ApiFuture;
 import com.google.api.core.ApiFutures;

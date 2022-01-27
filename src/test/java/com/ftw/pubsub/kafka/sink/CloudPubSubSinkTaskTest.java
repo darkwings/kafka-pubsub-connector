@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.sink;
+package com.ftw.pubsub.kafka.sink;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
@@ -24,10 +24,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.protobuf.ByteString;
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
 import com.google.pubsub.v1.PubsubMessage;
 import java.lang.Runnable;
 import java.util.ArrayList;

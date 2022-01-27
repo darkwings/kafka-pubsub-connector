@@ -13,8 +13,10 @@
 // limitations under the License.
 //
 ////////////////////////////////////////////////////////////////////////////////
-package com.nttdata.pubsub.kafka.source;
+package com.ftw.pubsub.kafka.source;
 
+import com.ftw.pubsub.kafka.common.ConnectorCredentialsProvider;
+import com.ftw.pubsub.kafka.common.ConnectorUtils;
 import com.google.api.core.ApiFutures;
 import com.google.api.gax.batching.FlowControlSettings;
 import com.google.api.gax.batching.FlowController.LimitExceededBehavior;
@@ -26,8 +28,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.util.Timestamps;
-import com.nttdata.pubsub.kafka.common.ConnectorUtils;
-import com.nttdata.pubsub.kafka.common.ConnectorCredentialsProvider;
 import com.google.pubsub.v1.ProjectSubscriptionName;
 import com.google.pubsub.v1.PubsubMessage;
 import com.google.pubsub.v1.ReceivedMessage;
