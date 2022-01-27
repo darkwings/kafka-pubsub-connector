@@ -60,7 +60,7 @@ public class CloudPubSubSinkTask extends SinkTask {
     private static final Logger log = LoggerFactory.getLogger(CloudPubSubSinkTask.class);
 
     // Maps a topic to another map which contains the outstanding futures per partition
-    private final Map<String, Map<Integer, OutstandingFuturesForPartition>> allOutstandingFutures =
+    private final Map<String, Map<Integer, OutstandingFuturesDataForPartition>> allOutstandingFutures =
             new HashMap<>();
     private String cpsProject;
     private String cpsTopic;
@@ -80,14 +80,15 @@ public class CloudPubSubSinkTask extends SinkTask {
     private CloudPubSubSinkConnector.OrderingKeySource orderingKeySource;
     private ConnectorCredentialsProvider gcpCredentialsProvider;
     private com.google.cloud.pubsub.v1.Publisher publisher;
+    private String bootstrapServers;
 
     private Producer<String, byte[]> sinkDlqProducer;
 
     /**
      * Holds a list of the publishing futures that have not been processed for a single partition.
      */
-    private static class OutstandingFuturesForPartition {
-        public List<OutstandingData> futures = new ArrayList<>();
+    private static class OutstandingFuturesDataForPartition {
+        public List<OutstandingData> data = new ArrayList<>();
     }
 
     private static class OutstandingData {
@@ -127,6 +128,7 @@ public class CloudPubSubSinkTask extends SinkTask {
     @Override
     public void start(Map<String, String> props) {
         Map<String, Object> validatedProps = new CloudPubSubSinkConnector().config().parse(props);
+        bootstrapServers = validatedProps.get(ConnectorUtils.BOOTSTRAP_SERVERS).toString();
         cpsProject = validatedProps.get(ConnectorUtils.CPS_PROJECT_CONFIG).toString();
         cpsTopic = validatedProps.get(ConnectorUtils.CPS_TOPIC_CONFIG).toString();
         cpsEndpoint = validatedProps.get(ConnectorUtils.CPS_ENDPOINT).toString();
@@ -174,7 +176,7 @@ public class CloudPubSubSinkTask extends SinkTask {
 
         if (sinkDlq != null && sinkDlq.trim().length() != 0) {
             Properties properties = new Properties();
-            properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092"); // TODO, ricavare in qualche modo
+            properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
             properties.put(ProducerConfig.CLIENT_ID_CONFIG, "SinkDlqProducer");
             properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
                     StringSerializer.class.getName());
@@ -386,22 +388,22 @@ public class CloudPubSubSinkTask extends SinkTask {
         for (Map.Entry<TopicPartition, OffsetAndMetadata> partitionOffset :
                 partitionOffsets.entrySet()) {
             log.info("Received flush for partition " + partitionOffset.getKey().partition());
-            Map<Integer, OutstandingFuturesForPartition> outstandingFuturesForTopic =
+            Map<Integer, OutstandingFuturesDataForPartition> outstandingFuturesForTopic =
                     allOutstandingFutures.get(partitionOffset.getKey().topic());
             if (outstandingFuturesForTopic == null) {
                 continue;
             }
-            OutstandingFuturesForPartition outstandingFutures =
+            OutstandingFuturesDataForPartition outstandingFutures =
                     outstandingFuturesForTopic.get(partitionOffset.getKey().partition());
             if (outstandingFutures == null) {
                 continue;
             }
             try {
-                List<ApiFuture<String>> apiFutureStream = outstandingFutures.futures.stream()
+                List<ApiFuture<String>> apiFutureStream = outstandingFutures.data.stream()
                         .map(f -> f.future).collect(Collectors.toList());
                 ApiFutures.allAsList(apiFutureStream).get();
             } catch (ExecutionException e) {
-                if (e.getCause() instanceof InvalidArgumentException) {
+                if (toDlq(e)) {
                     log.error("InvalidArgumentException detected: sending messages to DLQ, they cannot be retrieved");
                     toApplicationDLQ(outstandingFutures);
                 }
@@ -418,25 +420,32 @@ public class CloudPubSubSinkTask extends SinkTask {
                 manageExceptionAndEventuallyRethrow(e, outstandingFutures);
             }
             finally {
-                outstandingFutures.futures.clear();
+                outstandingFutures.data.clear();
             }
         }
         allOutstandingFutures.clear();
     }
 
-    private void manageExceptionAndEventuallyRethrow(Throwable e, OutstandingFuturesForPartition outstandingFutures) {
+    private boolean toDlq(ExecutionException e) {
+        return e.getCause() instanceof InvalidArgumentException;
+    }
 
-        // al momento rilancio RuntimeException
+    private void manageExceptionAndEventuallyRethrow(Throwable e, OutstandingFuturesDataForPartition outstandingFutures) {
+
+        // TODO
+        // al momento rilancio come RuntimeException
         throw new RuntimeException(e);
     }
 
-    private void toApplicationDLQ(OutstandingFuturesForPartition outstandingFutures) {
+    private void toApplicationDLQ(OutstandingFuturesDataForPartition outstandingFutures) {
         try {
-            for (OutstandingData osd : outstandingFutures.futures) {
-                byte[] buf = osd.message.getData().toByteArray();
-                String messageId = osd.message.getMessageId();
-                log.error("Sending message {} to sink DLQ topic {}", messageId, sinkDlq);
-                sinkDlqProducer.send(new ProducerRecord<>(sinkDlq, messageId, buf));
+            for (OutstandingData osd : outstandingFutures.data) {
+                if (!osd.future.isDone()) {
+                    byte[] buf = osd.message.getData().toByteArray();
+                    String messageId = osd.message.getMessageId();
+                    log.error("Sending message {} to sink DLQ topic {}", messageId, sinkDlq);
+                    sinkDlqProducer.send(new ProducerRecord<>(sinkDlq, messageId, buf));
+                }
             }
         }
         catch (Exception e) {
@@ -463,15 +472,15 @@ public class CloudPubSubSinkTask extends SinkTask {
     private void collectOutstandingData(String topic, Integer partition,
                                         PubsubMessage message,
                                         ApiFuture<String> apiFuture) {
-        Map<Integer, OutstandingFuturesForPartition> outstandingFuturesForTopic =
+        Map<Integer, OutstandingFuturesDataForPartition> outstandingFuturesForTopic =
                 allOutstandingFutures.computeIfAbsent(topic, k -> new HashMap<>());
         // Get the object containing the outstanding futures for this topic and partition..
-        OutstandingFuturesForPartition outstandingFutures = outstandingFuturesForTopic.get(partition);
+        OutstandingFuturesDataForPartition outstandingFutures = outstandingFuturesForTopic.get(partition);
         if (outstandingFutures == null) {
-            outstandingFutures = new OutstandingFuturesForPartition();
+            outstandingFutures = new OutstandingFuturesDataForPartition();
             outstandingFuturesForTopic.put(partition, outstandingFutures);
         }
-        outstandingFutures.futures.add(new OutstandingData(apiFuture, message));
+        outstandingFutures.data.add(new OutstandingData(apiFuture, message));
     }
 
     private void createPublisher() {

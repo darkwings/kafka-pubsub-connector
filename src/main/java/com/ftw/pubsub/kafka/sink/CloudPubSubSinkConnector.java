@@ -33,6 +33,8 @@ import org.apache.kafka.connect.sink.SinkConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.ftw.pubsub.kafka.common.ConnectorUtils.BOOTSTRAP_SERVERS;
+
 /**
  * A {@link SinkConnector} that writes messages to a specified topic in <a
  * href="https://cloud.google.com/pubsub">Google Cloud Pub/Sub</a>.
@@ -258,6 +260,11 @@ public class CloudPubSubSinkConnector extends SinkConnector {
                     null,
                     Importance.MEDIUM,
                     "The Kafka topic to use as DLQ for application error (useful for AVRO topic)")
+            .define(BOOTSTRAP_SERVERS,
+                    Type.STRING,
+                    null,
+                    Importance.MEDIUM,
+                    "The brokers, for application DLQ (not supported by connector directly)")
             .define(ConnectorUtils.CPS_ENDPOINT,
                     Type.STRING,
                     ConnectorUtils.CPS_DEFAULT_ENDPOINT,

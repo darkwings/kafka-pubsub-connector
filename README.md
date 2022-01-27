@@ -114,6 +114,7 @@ Connector supports the following configs:
 | headers.publish | Boolean | false | When true, include any headers as attributes when a message is published to Cloud Pub/Sub. |
 | orderingKeySource | String (none, key, partition) | none | When set to "none", do not set the ordering key. When set to "key", uses a message's key as the ordering key. If set to "partition", converts the partition number to a String and uses that as the ordering key. Note that using "partition" should only be used for low-throughput topics or topics with thousands of partitions. |
 | sink.dlq.topic | String | Optional | If set, a flush() error will send discarded messages to the given DLQ topic |
+| bootstrap.servers | String | Optional | Required if sink.dlq.topic is set. It's quite ugly to set this property here again but.... |
 
 ### Schema Support and Data Model
 
@@ -225,7 +226,12 @@ Execute the following command in a shell
                 "tasks.max": "4",
                 "topics": "topic-vf-json",
                 "errors.tolerance":"all",
+                "bootstrap.servers":"localhost:9092",
                 "errors.deadletterqueue.topic.name":"topic-vf-json-dlq",
+                "errors.deadletterqueue.topic.replication.factor": 1,
+                "errors.deadletterqueue.context.headers.enable":true,
+                "errors.log.enable":true,
+                "errors.log.include.messages":true, 
                 "cps.topic":"test-vf-json",
                 "cps.project":"big-query-test-332316",
                 "gcp.credentials.file.path":"/path/to/service-account.json",
@@ -250,6 +256,10 @@ setting the property ```kafka.key.attribute```.
                 "kafka.key.attribute":"key",
                 "errors.tolerance":"all",
                 "errors.deadletterqueue.topic.name":"json-from-pubsub-dlq",
+                "errors.deadletterqueue.topic.replication.factor": 1,
+                "errors.deadletterqueue.context.headers.enable":true,
+                "errors.log.enable":true,
+                "errors.log.include.messages":true, 
                 "cps.subscription":"cps-vf-json-sub",
                 "cps.project":"big-query-test-332316",
                 "cps.as.plain.string":"true",
