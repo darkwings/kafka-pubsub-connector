@@ -1,19 +1,17 @@
 ### Introduction
 
-The CloudPubSubConnector is a connector to be used with
-[Kafka Connect](http://kafka.apache.org/documentation.html#connect) to publish
+The Cloud PubSub Connector, largely inspired by the connector provided 
+by [Google](https://github.com/GoogleCloudPlatform/pubsub/tree/master/kafka-connector), 
+is a connector to be used with [Kafka Connect](http://kafka.apache.org/documentation.html#connect) to publish
 messages from [Kafka](http://kafka.apache.org) to
-[Google Cloud Pub/Sub](https://cloud.google.com/pubsub/) or
-[Pub/Sub Lite](https://cloud.google.com/pubsub/lite) and vice versa.
+[Google Cloud Pub/Sub](https://cloud.google.com/pubsub/) and vice versa.
 
-CloudPubSubSinkConnector provides a sink connector to copy messages from Kafka
-to Google Cloud Pub/Sub.
-CloudPubSubSourceConnector provides a source connector to copy messages from
-Google Cloud Pub/Sub to Kafka.
-PubSubLiteSinkConnector provides a sink connector to copy messages from Kafka
-to Pub/Sub Lite.
-PubSubLiteSourceConnector provides a source connector to copy messages from
-Pub/Sub Lite to Kafka.
+If compared to the original connector
+- we removed the Lite version
+- we're trying to provide a better error handling for the SINK connector (in progress)
+- we're adding a plain text version of the source connector, useful when source data are JSON without schema.
+
+This connector works with Kafka Open Source and also with the Confluent platform.
 
 ### Pre-Running Steps
 
@@ -42,23 +40,11 @@ Pub/Sub Lite to Kafka.
 
 These instructions assume you are using [Maven](https://maven.apache.org/).
 
-1.  If you want to build the connector from head, clone the repository, ensuring
-    to do so recursively to pick up submodules:
+1.  Go into the kafka-connector directory in the cloned repo.
 
-    `git clone --recursive https://github.com/GoogleCloudPlatform/pubsub`
+2.  Make the jar that contains the connector:
 
-    If you wish to build from a released version of the connector, download it
-    from the [Releases section](https://github.com/GoogleCloudPlatform/pubsub/releases)
-    in GitHub.
-
-2.  Unzip the source code if downloaded from the release version.
-
-3.  Go into the kafka-connector directory in the cloned repo or downloaded
-    release.
-
-4.  Make the jar that contains the connector:
-
-    `mvn package`
+    `mvn clean package`
 
 The resulting jar is at target/pubsub-kafka-connector.jar.
 
@@ -70,8 +56,7 @@ The resulting jar is at target/pubsub-kafka-connector.jar.
 
 2.  Create a configuration file for the Pub/Sub connector and copy it to the
     place where you will run Kafka connect. The configuration should set up the
-    proper Kafka topics, Pub/Sub topic, and Pub/Sub project. For Pub/Sub Lite,
-    this should also set the correct location (google cloud zone).
+    proper Kafka topics, Pub/Sub topic, and Pub/Sub project. 
     Sample configuration files for the source and sink connectors are provided
     at configs/.
 
@@ -100,7 +85,6 @@ Connector supports the following configs:
 | cps.endpoint | String | "pubsub.googleapis.com:443" | The [Cloud Pub/Sub endpoint](https://cloud.google.com/pubsub/docs/reference/service_apis_overview#service_endpoints) to use. |
 | kafka.topic | String | REQUIRED (No default) | The topic in Kafka which will receive messages that were pulled from Cloud Pub/Sub. |
 | cps.maxBatchSize | Integer | 100 | The maximum number of messages to batch per pull request to Cloud Pub/Sub. |
-| cps.as.plain.text | Boolean | false | Set to true if you want the source connector to forward data as plain text |
 | cps.makeOrderingKeyAttribute | Boolean | false | When true, copy the ordering key to the set of attributes set in the Kafka message. |
 | kafka.key.attribute | String | null | The Cloud Pub/Sub message attribute to use as a key for messages published to Kafka. If set to "orderingKey", use the message's ordering key. |
 | kafka.partition.count | Integer | 1 | The number of Kafka partitions for the Kafka topic in which messages will be published to. NOTE: this parameter is ignored if partition scheme is "kafka_partitioner".|
@@ -108,6 +92,7 @@ Connector supports the following configs:
 | gcp.credentials.file.path | String | Optional | The file path, which stores GCP credentials.| If not defined, GOOGLE_APPLICATION_CREDENTIALS env is used. |
 | gcp.credentials.json | String | Optional | GCP credentials JSON blob | If specified, use the explicitly handed credentials. Consider using the externalized secrets feature in Kafka Connect for passing the value. |
 | kafka.record.headers | Boolean | false | Use Kafka record headers to store Pub/Sub message attributes |
+| cps.as.plain.text | Boolean | false | Set to true if you want the source connector to forward data as plain text |
 
 #### Sink Connector
 
