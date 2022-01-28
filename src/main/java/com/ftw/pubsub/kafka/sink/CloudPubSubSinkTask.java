@@ -80,7 +80,6 @@ public class CloudPubSubSinkTask extends SinkTask {
     private CloudPubSubSinkConnector.OrderingKeySource orderingKeySource;
     private ConnectorCredentialsProvider gcpCredentialsProvider;
     private com.google.cloud.pubsub.v1.Publisher publisher;
-    private String bootstrapServers;
 
     private Producer<String, byte[]> sinkDlqProducer;
 
@@ -116,8 +115,9 @@ public class CloudPubSubSinkTask extends SinkTask {
     }
 
     @VisibleForTesting
-    public CloudPubSubSinkTask(Publisher publisher) {
+    public CloudPubSubSinkTask(Publisher publisher, Producer<String, byte[]> sinkDlqProducer) {
         this.publisher = publisher;
+        this.sinkDlqProducer = sinkDlqProducer;
     }
 
     @Override
@@ -128,7 +128,7 @@ public class CloudPubSubSinkTask extends SinkTask {
     @Override
     public void start(Map<String, String> props) {
         Map<String, Object> validatedProps = new CloudPubSubSinkConnector().config().parse(props);
-        bootstrapServers = validatedProps.get(ConnectorUtils.BOOTSTRAP_SERVERS).toString();
+        String bootstrapServers = validatedProps.get(ConnectorUtils.BOOTSTRAP_SERVERS).toString();
         cpsProject = validatedProps.get(ConnectorUtils.CPS_PROJECT_CONFIG).toString();
         cpsTopic = validatedProps.get(ConnectorUtils.CPS_TOPIC_CONFIG).toString();
         cpsEndpoint = validatedProps.get(ConnectorUtils.CPS_ENDPOINT).toString();
@@ -174,7 +174,13 @@ public class CloudPubSubSinkTask extends SinkTask {
             createPublisher();
         }
 
-        if (sinkDlq != null && sinkDlq.trim().length() != 0) {
+        createDlqProducer(bootstrapServers);
+
+        log.info("Start CloudPubSubSinkTask");
+    }
+
+    private void createDlqProducer(String bootstrapServers) {
+        if (sinkDlq != null && sinkDlq.trim().length() != 0 && sinkDlqProducer == null) {
             Properties properties = new Properties();
             properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
             properties.put(ProducerConfig.CLIENT_ID_CONFIG, "SinkDlqProducer");
@@ -184,8 +190,6 @@ public class CloudPubSubSinkTask extends SinkTask {
                     ByteArraySerializer.class.getName());
             sinkDlqProducer = new KafkaProducer<>(properties);
         }
-
-        log.info("Start CloudPubSubSinkTask");
     }
 
     @Override
@@ -427,7 +431,14 @@ public class CloudPubSubSinkTask extends SinkTask {
     }
 
     private boolean toDlq(ExecutionException e) {
-        return e.getCause() instanceof InvalidArgumentException;
+        Throwable cause = e.getCause();
+        if( cause instanceof InvalidArgumentException) {
+            InvalidArgumentException iex = (InvalidArgumentException) cause;
+            return !iex.isRetryable();
+        }
+        else {
+            return false;
+        }
     }
 
     private void manageExceptionAndEventuallyRethrow(Throwable e, OutstandingFuturesDataForPartition outstandingFutures) {
@@ -440,15 +451,12 @@ public class CloudPubSubSinkTask extends SinkTask {
     private void toApplicationDLQ(OutstandingFuturesDataForPartition outstandingFutures) {
         try {
             for (OutstandingData osd : outstandingFutures.data) {
-                if (!osd.future.isDone()) {
-                    byte[] buf = osd.message.getData().toByteArray();
-                    String messageId = osd.message.getMessageId();
-                    log.error("Sending message {} to sink DLQ topic {}", messageId, sinkDlq);
-                    sinkDlqProducer.send(new ProducerRecord<>(sinkDlq, messageId, buf));
-                }
+                byte[] buf = osd.message.getData().toByteArray();
+                String messageId = osd.message.getMessageId();
+                log.error("Sending message {} to sink DLQ topic {}", messageId, sinkDlq);
+                sinkDlqProducer.send(new ProducerRecord<>(sinkDlq, messageId, buf));
             }
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             // TODO log all information of messages
             log.error("Failed to publish data to applicative DLQ", e);
         }

@@ -26,6 +26,8 @@ import static org.mockito.Mockito.when;
 
 import com.ftw.pubsub.kafka.common.ConnectorUtils;
 import com.google.api.core.ApiFuture;
+import com.google.api.gax.rpc.InvalidArgumentException;
+import com.google.api.gax.rpc.StatusCode;
 import com.google.cloud.pubsub.v1.Publisher;
 import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.PubsubMessage;
@@ -39,6 +41,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -71,6 +75,7 @@ public class CloudPubSubSinkTaskTest {
   private CloudPubSubSinkTask task;
   private Map<String, String> props;
   private Publisher publisher;
+  private Producer<String, byte[]> sinkDlqProducer;
 
   private class SpyableFuture<V> implements ApiFuture<V> {
     private V value = null;
@@ -121,11 +126,14 @@ public class CloudPubSubSinkTaskTest {
   @Before
   public void setup() {
     publisher = mock(Publisher.class, RETURNS_DEEP_STUBS);
-    task = new CloudPubSubSinkTask(publisher);
+    sinkDlqProducer = mock(Producer.class);
+    task = new CloudPubSubSinkTask(publisher, sinkDlqProducer);
     props = new HashMap<>();
     props.put(ConnectorUtils.CPS_TOPIC_CONFIG, CPS_TOPIC);
     props.put(ConnectorUtils.CPS_PROJECT_CONFIG, CPS_PROJECT);
     props.put(CloudPubSubSinkConnector.MAX_BUFFER_SIZE_CONFIG, CPS_MIN_BATCH_SIZE2);
+    props.put(ConnectorUtils.BOOTSTRAP_SERVERS, "localhost:9092");
+    props.put(CloudPubSubSinkConnector.SINK_DLQ, "dlq-application");
   }
 
   /** Tests that an exception is thrown when the schema of the value is not BYTES. */
@@ -375,6 +383,21 @@ public class CloudPubSubSinkTaskTest {
     task.flush(partitionOffsets);
     verify(publisher, times(1)).publish(any(PubsubMessage.class));
     verify(badFuture, times(1)).addListener(any(Runnable.class), any(Executor.class));
+  }
+
+  @Test
+  public void testFlushExceptionToDlqCase() throws Exception {
+    task.start(props);
+    Map<TopicPartition, OffsetAndMetadata> partitionOffsets = new HashMap<>();
+    partitionOffsets.put(new TopicPartition(KAFKA_TOPIC, 0), null);
+    List<SinkRecord> records = getSampleRecords();
+    ApiFuture<String> badFuture = getDlqErrorPublishFuture();
+    when(publisher.publish(any(PubsubMessage.class))).thenReturn(badFuture);
+    task.put(records);
+    task.flush(partitionOffsets);
+    verify(publisher, times(2)).publish(any(PubsubMessage.class));
+    verify(badFuture, times(2)).addListener(any(Runnable.class), any(Executor.class));
+    verify(sinkDlqProducer, times(2)).send(any(ProducerRecord.class));
   }
 
   /**
@@ -780,6 +803,22 @@ public class CloudPubSubSinkTaskTest {
 
   private ApiFuture<String> getFailedPublishFuture() {
     SpyableFuture<String> future = new SpyableFuture(new Exception());
+    return spy(future);
+  }
+
+  private ApiFuture<String> getDlqErrorPublishFuture() {
+    SpyableFuture<String> future = new SpyableFuture(new InvalidArgumentException(new Exception(),
+                    new StatusCode() {
+                      @Override
+                      public Code getCode() {
+                        return Code.INVALID_ARGUMENT;
+                      }
+
+                      @Override
+                      public Object getTransportCode() {
+                        return "";
+                      }
+                    }, false));
     return spy(future);
   }
 }
